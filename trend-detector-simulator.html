@@ -1,0 +1,580 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Trend Detector — live read</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:ital,opsz,wght@1,9..144,300;1,9..144,500;0,9..144,600&family=Outfit:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    --paper:#FBF5F3; --ink:#2E2430; --mauve:#7B4F63; --plum:#5C3A4E;
+    --blush:#F4DEE1; --blush-deep:#E8C3C9; --gold:#C2A15B;
+    --bull:#2E9E5B; --bear:#D2453F; --none:#8A8A8A;
+    --chart-bg:#0B0B0E;
+  }
+  *{box-sizing:border-box;margin:0;padding:0;}
+  body{
+    font-family:"Outfit",-apple-system,"Segoe UI",sans-serif;
+    background:var(--paper); color:var(--ink);
+    font-size:14px; line-height:1.45; padding:22px 20px 40px;
+    -webkit-font-smoothing:antialiased;
+  }
+  .wrap{max-width:1180px; margin:0 auto;}
+
+  header{
+    display:flex; align-items:flex-end; justify-content:space-between;
+    gap:24px; flex-wrap:wrap;
+    border-bottom:2px solid var(--plum); padding-bottom:12px; margin-bottom:18px;
+  }
+  h1{font-family:"Fraunces",Georgia,serif; font-style:italic; font-weight:300; font-size:38px; line-height:.95; letter-spacing:-.02em;}
+  h1 span{display:block; font-family:"Outfit",sans-serif; font-style:normal; font-size:13px; font-weight:400; color:var(--mauve); margin-top:7px; max-width:54ch;}
+
+  .scenbar{display:flex; align-items:center; gap:8px; flex-wrap:wrap;}
+  button{
+    font-family:"Outfit",sans-serif; font-size:12.5px; font-weight:500;
+    border:1px solid var(--blush-deep); background:#fff; color:var(--plum);
+    border-radius:3px 12px 3px 12px; padding:6px 13px; cursor:pointer;
+    transition:background .12s, border-color .12s;
+  }
+  button:hover{background:var(--blush); border-color:var(--mauve);}
+  button:focus-visible{outline:2px solid var(--plum); outline-offset:2px;}
+  button.solid{background:var(--plum); color:#fff; border-color:var(--plum);}
+  button.solid:hover{background:#472D3D;}
+  .scenname{font-family:"Fraunces",Georgia,serif; font-style:italic; font-size:15px; color:var(--plum); min-width:190px; text-align:center;}
+
+  .grid{display:grid; grid-template-columns:1.45fr 1fr; gap:20px; align-items:start;}
+  @media (max-width:900px){ .grid{grid-template-columns:1fr;} }
+
+  .chartcard{background:var(--chart-bg); border-radius:6px 20px 6px 20px; padding:14px 14px 10px;}
+  .charthead{display:flex; justify-content:space-between; align-items:center; margin-bottom:8px; gap:12px; flex-wrap:wrap;}
+  .charthead h2{font-family:"Fraunces",Georgia,serif; font-style:italic; font-weight:500; font-size:15px; color:#EFE3E6;}
+  .charthead em{font-style:normal; color:#7E7484; font-size:11.5px;}
+
+  .chart{
+    position:relative; height:440px; border:1px solid #2A2730; border-radius:3px;
+    background:
+      repeating-linear-gradient(to bottom, transparent 0 44px, rgba(255,255,255,.035) 44px 45px),
+      repeating-linear-gradient(to right, transparent 0 58px, rgba(255,255,255,.025) 58px 59px);
+    touch-action:none; user-select:none; overflow:hidden;
+  }
+  .chart svg{position:absolute; inset:0; width:100%; height:100%;}
+  .tl{stroke-linecap:round;}
+  .tl-hit{stroke:transparent; stroke-width:16; cursor:grab;}
+  .tl-hit:active{cursor:grabbing;}
+  .off .tl{stroke-dasharray:5 6; opacity:.26;}
+  .off .tl-hit{pointer-events:none;}
+  .nowline{stroke:#4A4655; stroke-width:1; stroke-dasharray:3 4;}
+  .pricepath{fill:none; stroke:#6F6A7A; stroke-width:1.25; opacity:.5;}
+
+  .ov{position:absolute; inset:0; pointer-events:none;}
+  .tag{
+    position:absolute; transform:translateY(-50%); height:18px; line-height:18px;
+    padding:0 7px; border-radius:9px; font-size:10.5px; font-weight:700;
+    letter-spacing:.03em; white-space:nowrap; pointer-events:none;
+  }
+  .tag.off{opacity:.3;}
+  .endh{
+    position:absolute; width:15px; height:15px; border-radius:50%;
+    transform:translate(-50%,-50%); cursor:ns-resize; pointer-events:auto;
+    background:#15131A; border:2px solid; opacity:.85; touch-action:none;
+  }
+  .endh:hover{opacity:1; transform:translate(-50%,-50%) scale(1.18);}
+  .endh.off{display:none;}
+  .endh.right{border-style:solid; background:#211E29;}
+
+  .priceline{position:absolute; left:0; right:0; height:0; cursor:grab; touch-action:none; z-index:6;}
+  .priceline:active{cursor:grabbing;}
+  .priceline .pbar{position:absolute; left:0; right:0; top:-1px; height:2px; background-image:repeating-linear-gradient(90deg,#fff 0 7px,transparent 7px 14px);}
+  .priceline .hit{position:absolute; left:0; right:0; top:-10px; height:20px;}
+  .priceline .ptag{
+    position:absolute; left:8px; top:-11px; background:#fff; color:#111;
+    font-size:10.5px; font-weight:700; letter-spacing:.06em; padding:2px 8px;
+    border-radius:3px 9px 3px 9px;
+  }
+  .helper{color:#6E6572; font-size:11px; margin-top:8px; text-align:center;}
+  .helper b{color:#9A93A2; font-weight:500;}
+
+  .ctrls{display:flex; gap:6px; flex-wrap:wrap; margin-top:12px;}
+  .tfctrl{flex:1 1 100px; background:#15131A; border:1px solid #2A2730; border-radius:3px 10px 3px 10px; padding:7px 8px 8px;}
+  .tfctrl .name{display:inline-block; font-size:11px; font-weight:700; letter-spacing:.03em; padding:1px 7px; border-radius:9px; margin-bottom:6px;}
+  .tfctrl .row{display:flex; gap:4px;}
+  .mini{
+    flex:1; font-size:10px; font-weight:600; padding:3px 0; text-align:center;
+    border-radius:3px; border:1px solid #33303B; background:#0E0D12; color:#8B8494;
+    cursor:pointer; font-family:"Outfit",sans-serif;
+  }
+  .mini:hover{border-color:#565063;}
+  .mini.on-bull{background:var(--bull); border-color:var(--bull); color:#fff;}
+  .mini.on-bear{background:var(--bear); border-color:var(--bear); color:#fff;}
+  .mini.on-none{background:#3A3A3A; border-color:#4A4A4A; color:#DCDCDC;}
+  .mini.on-line{background:#EFE3E6; border-color:#EFE3E6; color:#1a1a1a;}
+
+  .panel{margin-bottom:16px;}
+  .panel > h2{
+    font-family:"Fraunces",Georgia,serif; font-style:italic; font-weight:500;
+    font-size:17px; color:var(--plum); margin-bottom:8px;
+    display:flex; align-items:baseline; gap:9px; flex-wrap:wrap;
+  }
+  .panel > h2 em{font-style:normal; font-family:"Outfit",sans-serif; font-size:11.5px; color:var(--mauve); font-weight:400;}
+
+  .dash{background:#000; border:1px solid #6E6E6E; padding:5px; display:inline-block;}
+  .dash table{border-collapse:collapse; font-size:12px;}
+  .dash th{color:#B9B9B9; font-weight:500; font-size:10px; letter-spacing:.07em; padding:3px 11px; border:1px solid #6E6E6E; text-align:left;}
+  .dash td{border:1px solid #6E6E6E; padding:3px 11px; font-weight:600; text-align:left; white-space:nowrap;}
+  .bg-bull{background:#17693C;} .bg-bear{background:#8E2420;} .bg-none{background:#3A3A3A;}
+  .px{color:#fff; letter-spacing:.04em;}
+  .ar{font-size:9px; margin-right:4px; vertical-align:1px;}
+  .sl{color:#8A8A92; font-size:10px; margin-left:6px;}
+
+  .board{background:#000; border:1px solid #6E6E6E; padding:7px 5px; font-size:12.5px; position:relative; min-height:54px;}
+  .board .msg{padding:3px 11px; font-weight:600; letter-spacing:.01em;}
+  .board .msg b{color:#6E6E78; font-weight:500; font-size:10.5px; letter-spacing:.04em; margin-right:6px;}
+  .board .msg small{font-weight:400; font-size:10.5px; color:#7C7C86; letter-spacing:0; margin-left:7px;}
+  .board .dashrow{padding:3px 11px; color:#6A6A6A; font-weight:500;}
+  .board .dashrow b{color:#4E4E4E; font-weight:500; font-size:10.5px; letter-spacing:.04em; margin-right:7px;}
+  .board.hidden .msg, .board.hidden .dashrow{filter:blur(5px);}
+  .board .cover{
+    position:absolute; inset:0; display:none; align-items:center; justify-content:center;
+    background:rgba(0,0,0,.35); cursor:pointer; color:#EFE3E6;
+    font-family:"Fraunces",Georgia,serif; font-style:italic; font-size:14px;
+  }
+  .board.hidden .cover{display:flex;}
+
+  .readout{background:#fff; border:1px solid var(--blush-deep); border-radius:4px 16px 4px 16px; padding:11px 13px; font-size:12.5px; color:var(--mauve); line-height:1.5;}
+  .readout b{color:var(--plum);}
+  .readout .verdict{font-family:"Fraunces",Georgia,serif; font-style:italic; font-size:16px; display:block; margin-bottom:4px;}
+  .v-bull{color:var(--bull);} .v-bear{color:var(--bear);} .v-chop{color:#9A7B00;} .v-flat{color:var(--mauve);}
+
+  .footnote{margin-top:20px; padding-top:11px; border-top:1px solid var(--blush-deep); font-size:11.5px; color:var(--mauve); display:flex; justify-content:space-between; gap:16px; flex-wrap:wrap;}
+  .footnote .sig{font-family:"Fraunces",Georgia,serif; font-style:italic; font-size:13px; color:var(--plum);}
+</style>
+</head>
+<body>
+<div class="wrap">
+
+  <header>
+    <h1>Trend Detector — live read
+      <span>Tilt and drag the lines until they sit the way yours do, drop price where it is, and the dashboard and message board fill themselves in.</span>
+    </h1>
+    <div class="scenbar">
+      <button id="prev" aria-label="Previous layout">&lsaquo;</button>
+      <span class="scenname" id="scenname">Perfect bullish stack</span>
+      <button id="next" aria-label="Next layout">&rsaquo;</button>
+      <button id="shuffle" class="solid">Random layout</button>
+      <button id="quiz">Hide the answers</button>
+    </div>
+  </header>
+
+  <div class="grid">
+    <div>
+      <div class="chartcard">
+        <div class="charthead">
+          <h2>Your lines</h2>
+          <em>drag a line to move it &middot; drag either end dot to tilt it</em>
+        </div>
+        <div class="chart" id="chart">
+          <svg id="plot" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden="true"></svg>
+          <div class="ov" id="ov"></div>
+        </div>
+        <p class="helper">Both end dots run the full height of the panel, independently. Everything is measured at the <b>now</b> line on the right, where each trendline ends &mdash; slope is what you see coming, not what counts yet.</p>
+        <div class="ctrls" id="ctrls"></div>
+      </div>
+    </div>
+
+    <div>
+      <div class="panel">
+        <h2>Dashboard <em>top-right on your chart</em></h2>
+        <div class="dash">
+          <table>
+            <thead><tr><th>TF</th><th>PRICE</th><th>TL ORDER</th></tr></thead>
+            <tbody id="dashbody"></tbody>
+          </table>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>Message center <em>only live rows are drawn</em></h2>
+        <div class="board" id="board">
+          <div class="cover" id="cover">read it yourself first &mdash; tap to reveal</div>
+          <div id="boardrows"></div>
+        </div>
+      </div>
+
+      <div class="panel">
+        <h2>What you're looking at</h2>
+        <div class="readout" id="readout"></div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footnote">
+    <span>Phrases always name the lower timeframe of the pair &middot; 1M sits out of both perfect stacks &middot; red means price is working against the higher timeframe, green means with it</span>
+    <span class="sig">back to the charts, babe</span>
+  </div>
+</div>
+
+<script>
+const TFS = [
+  {id:'1D',  color:'#FFFFFF', on:'#1a1a1a', dim:'#E8E8E8'},
+  {id:'4H',  color:'#FFD400', on:'#3A2E00', dim:'#FFD400'},
+  {id:'1H',  color:'#40E0D0', on:'#0C3B37', dim:'#40E0D0'},
+  {id:'15M', color:'#5D3FD3', on:'#FFFFFF', dim:'#8B72F0'},
+  {id:'5M',  color:'#E03B3B', on:'#FFFFFF', dim:'#FF5B5B'},
+  {id:'1M',  color:'#808080', on:'#FFFFFF', dim:'#9A9A9A'}
+];
+const TF = Object.fromEntries(TFS.map(t=>[t.id,t]));
+const TOL = 1.6;
+const PAIRS = [['4H','1H'],['1H','15M'],['15M','5M']];
+const X0 = 5, X1 = 84, SPAN = X1 - X0;      // plot span; X1 is the "now" anchor
+const clamp = (v,a,b)=>Math.max(a,Math.min(b,v));
+
+const S = {price:50, l:{}};
+
+// each line is two independent endpoints: .left (at X0) and .level (at X1, the now anchor)
+const leftVal = id => S.l[id].left;
+const slopeOf = id => S.l[id].level - S.l[id].left;
+const DEFAULT_TILT = 14;
+
+/* ---------- scenarios: [level, bias, slope, lineDrawn] ---------- */
+function mk(price, spec){
+  const l = {};
+  TFS.forEach(t=>{
+    const s = spec[t.id];
+    if(!s){ l[t.id] = {level:50, left:50, bias:'none', on:false}; return; }
+    let sl = s[2] || 0;
+    // a line always tilts with its own bias unless you move it yourself
+    if(s[1] === 'bull') sl =  Math.max(Math.abs(sl), 8);
+    if(s[1] === 'bear') sl = -Math.max(Math.abs(sl), 8);
+    l[t.id] = {level:s[0], left:clamp(s[0]-sl, 2, 98), bias:s[1], on:s[3]!==false};
+  });
+  return {price, l};
+}
+const SCENARIOS = [
+  {name:'Perfect bullish stack', s:()=>mk(90,{'5M':[78,'bull',20],'15M':[66,'bull',17],'1H':[54,'bull',14],'4H':[42,'bull',11],'1D':[30,'bull',8],'1M':[84,'bull',22]})},
+  {name:'Perfect bearish stack', s:()=>mk(10,{'1D':[70,'bear',-8],'4H':[58,'bear',-11],'1H':[46,'bear',-14],'15M':[34,'bear',-17],'5M':[22,'bear',-20],'1M':[16,'bear',-22]})},
+  {name:'Chop City — 4H tangled', s:()=>mk(56,{'1D':[24,'bull',8],'4H':[52,'bull',8],'1H':[62,'bull',9],'15M':[41,'bull',12],'5M':[57,'bear',-8],'1M':[55,'bear',-15]})},
+  {name:'Chop City — 1D tangled', s:()=>mk(45,{'1D':[47,'bear',-8],'4H':[74,'bear',-9],'1H':[60,'bull',8],'15M':[38,'bull',13],'5M':[55,'bull',18],'1M':[44,'none',-6]})},
+  {name:'Pullback on the 1H', s:()=>mk(40,{'1D':[22,'bull',8],'4H':[62,'bull',12],'1H':[48,'bull',9],'15M':[36,'bull',14],'5M':[30,'bull',17],'1M':[41,'bull',8]})},
+  {name:'Formation pending on the 5M', s:()=>mk(51,{'1D':[20,'bull',8],'4H':[64,'bull',13],'1H':[58,'bull',9],'15M':[56,'bull',8],'5M':[46,'bull',8],'1M':[52,'bull',11]})},
+  {name:'Bearish pullback on the 1H', s:()=>mk(62,{'1D':[78,'bear',-8],'4H':[44,'bear',-12],'1H':[56,'bear',-8],'15M':[66,'bear',-13],'5M':[70,'bear',-16],'1M':[63,'bear',-8]})},
+  {name:'Short Term PB on the 15M', s:()=>mk(33,{'1D':[18,'bull',8],'4H':[30,'bull',9],'1H':[60,'bull',15],'15M':[42,'bear',-13],'5M':[36,'bear',-16],'1M':[34,'bear',-10]})},
+  {name:'Short Term Indication on the 1H', s:()=>mk(38,{'1D':[80,'bear',-8],'4H':[30,'bear',-11],'1H':[52,'bull',14],'15M':[62,'bull',17],'5M':[66,'bull',19],'1M':[40,'bull',8]})},
+  {name:'Lower lines not printed yet', s:()=>mk(58,{'1D':[26,'bull',8],'4H':[40,'bull',12],'1H':[64,'bull',16],'15M':[50,'none',0],'5M':[50,'none',0,false],'1M':[50,'none',0,false]})},
+  {name:'Mixed bias, no clean read', s:()=>mk(49,{'1D':[70,'bear',-9],'4H':[20,'bull',11],'1H':[58,'bear',-8],'15M':[26,'bull',15],'5M':[64,'none',2],'1M':[46,'bear',-13]})},
+  {name:'Bearish stack, 5M flipping', s:()=>mk(29,{'1D':[74,'bear',-8],'4H':[62,'bear',-10],'1H':[50,'bear',-13],'15M':[38,'bear',-16],'5M':[44,'bull',16],'1M':[47,'bull',19]})}
+];
+let scenIdx = 0;
+
+function loadScenario(i){
+  scenIdx = (i + SCENARIOS.length) % SCENARIOS.length;
+  const sc = SCENARIOS[scenIdx].s();
+  S.price = sc.price; S.l = sc.l;
+  document.getElementById('scenname').textContent = SCENARIOS[scenIdx].name;
+  render();
+}
+function randomLayout(){
+  const spread = [];
+  while(spread.length < 6){
+    const v = 16 + Math.round(Math.random()*68);
+    if(spread.every(x=>Math.abs(x-v) > 4)) spread.push(v);
+  }
+  TFS.forEach((t,i)=>{
+    const r = Math.random();
+    const bias = r<.45 ? 'bull' : r<.9 ? 'bear' : 'none';
+    const dir = bias==='bull' ? 1 : bias==='bear' ? -1 : (Math.random()<.5?1:-1);
+    const level = spread[i];
+    S.l[t.id] = {
+      level,
+      left: clamp(level - Math.round(dir * (5 + Math.random()*18)), 2, 98),
+      bias,
+      on: Math.random() > .12
+    };
+  });
+  S.price = 12 + Math.round(Math.random()*76);
+  document.getElementById('scenname').textContent = 'Random layout';
+  render();
+}
+
+/* ---------- logic (all evaluated at the now anchor) ---------- */
+const live = id => S.l[id].on;
+const lvl  = id => S.l[id].level;
+
+function priceState(id){
+  if(!live(id)) return 'WAIT';
+  const d = S.price - lvl(id);
+  if(Math.abs(d) <= TOL) return 'AT';
+  return d > 0 ? 'ABOVE' : 'BELOW';
+}
+function stackOrder(){
+  const on  = TFS.filter(t=>live(t.id)).sort((a,b)=>lvl(b.id)-lvl(a.id)).map(t=>t.id);
+  const off = TFS.filter(t=>!live(t.id)).map(()=>null);
+  return on.concat(off);
+}
+const between = (x,a,b) => x > Math.min(a,b) && x < Math.max(a,b);
+
+function chopCity(){
+  const tests = [['4H','15M','1H'],['4H','5M','15M'],['1D','15M','1H'],['1D','5M','15M']];
+  const hits = [];
+  tests.forEach(([h,a,b])=>{
+    if(live(h) && live(a) && live(b) && between(lvl(h), lvl(a), lvl(b)))
+      hits.push(h + ' between the ' + a + ' and ' + b);
+  });
+  return hits;
+}
+function perfectStack(){
+  const seq = ['5M','15M','1H','4H','1D'];
+  if(!seq.every(live)) return null;
+  if(seq.every((id,i)=> i===0 || lvl(seq[i-1]) > lvl(id)) && seq.every(id=>S.l[id].bias==='bull')) return 'bull';
+  if(seq.every((id,i)=> i===0 || lvl(seq[i-1]) < lvl(id)) && seq.every(id=>S.l[id].bias==='bear')) return 'bear';
+  return null;
+}
+function pairPhrase(hi, lo){
+  if(!live(hi) || !live(lo)) return null;
+  const hb = S.l[hi].bias, lb = S.l[lo].bias;
+  if(hb==='none' || lb==='none') return null;
+  const same = hb === lb, H = lvl(hi), L = lvl(lo), P = S.price;
+  if(hb === 'bull'){
+    if(!(L < H)) return null;
+    if(P < L) return {text:(same?'Pullback on the ':'Short Term PB on the ')+lo, color:'bear'};
+    if(P > L) return {text:(same?'Formation pending on the ':'Short Term Indication on the ')+lo, color:'bull'};
+  } else {
+    if(!(L > H)) return null;
+    if(P > L) return {text:(same?'Pullback on the ':'Short Term PB on the ')+lo, color:'bull'};
+    if(P < L) return {text:(same?'Formation pending on the ':'Short Term Indication on the ')+lo, color:'bear'};
+  }
+  return null;
+}
+
+/* ---------- chart build ---------- */
+const chart = document.getElementById('chart');
+const plot  = document.getElementById('plot');
+const ov    = document.getElementById('ov');
+const NS = 'http://www.w3.org/2000/svg';
+const arrows = {ABOVE:'▲', BELOW:'▼', AT:'◆', WAIT:'○'};
+
+function svgEl(n, attrs){
+  const e = document.createElementNS(NS, n);
+  for(const k in attrs) e.setAttribute(k, attrs[k]);
+  return e;
+}
+function pointerVals(ev){
+  const r = chart.getBoundingClientRect();
+  return {
+    x: clamp((ev.clientX - r.left)/r.width*100, 0, 100),
+    v: clamp((1 - (ev.clientY - r.top)/r.height)*100, 0, 100)
+  };
+}
+function startDrag(onMove){
+  const move = ev => { onMove(pointerVals(ev)); ev.preventDefault(); };
+  const up = () => { window.removeEventListener('pointermove', move); window.removeEventListener('pointerup', up); };
+  window.addEventListener('pointermove', move);
+  window.addEventListener('pointerup', up);
+}
+
+function buildChart(){
+  plot.innerHTML = ''; ov.innerHTML = '';
+
+  plot.appendChild(svgEl('polyline', {class:'pricepath', id:'ppath', points:'', 'vector-effect':'non-scaling-stroke'}));
+  plot.appendChild(svgEl('line', {class:'nowline', x1:X1, y1:0, x2:X1, y2:100, 'vector-effect':'non-scaling-stroke'}));
+
+  TFS.forEach(t=>{
+    const g = svgEl('g', {class:'lg', 'data-tf':t.id});
+    const bar = svgEl('line', {class:'tl', 'data-role':'bar', stroke:t.color, 'stroke-width':3, 'vector-effect':'non-scaling-stroke'});
+    const hit = svgEl('line', {class:'tl-hit', 'data-role':'hit', 'vector-effect':'non-scaling-stroke', 'pointer-events':'stroke'});
+    g.append(bar, hit); plot.appendChild(g);
+
+    hit.addEventListener('pointerdown', e=>{
+      const st = S.l[t.id];
+      if(!st.on) return;
+      const v0 = pointerVals(e).v, L0 = st.left, R0 = st.level;
+      startDrag(({v})=>{
+        // move the whole line, holding its angle, and stop at the first edge either end hits
+        const d = clamp(v - v0, 2 - Math.min(L0,R0), 98 - Math.max(L0,R0));
+        st.left  = Math.round((L0 + d)*2)/2;
+        st.level = Math.round((R0 + d)*2)/2;
+        markCustom(); render();
+      });
+      e.preventDefault();
+    });
+
+    const tag = document.createElement('div');
+    tag.className = 'tag'; tag.dataset.tf = t.id;
+    tag.style.background = t.color; tag.style.color = t.on;
+    tag.style.left = 'calc(' + X1 + '% + 11px)';
+    tag.textContent = t.id;
+    ov.appendChild(tag);
+
+    [['left', X0, 'left'], ['right', X1, 'level']].forEach(([side, x, key])=>{
+      const h = document.createElement('div');
+      h.className = 'endh ' + side; h.dataset.tf = t.id; h.dataset.side = side;
+      h.style.left = x + '%'; h.style.borderColor = t.color;
+      h.title = 'drag the ' + side + ' end of the ' + t.id + ' line';
+      ov.appendChild(h);
+      h.addEventListener('pointerdown', e=>{
+        if(!S.l[t.id].on) return;
+        startDrag(({v})=>{
+          S.l[t.id][key] = clamp(Math.round(v*2)/2, 2, 98);   // full height, independent of the other end
+          markCustom(); render();
+        });
+        e.preventDefault(); e.stopPropagation();
+      });
+    });
+  });
+
+  const p = document.createElement('div');
+  p.className = 'priceline'; p.id = 'pline';
+  p.innerHTML = '<div class="hit"></div><div class="pbar"></div><div class="ptag">PRICE</div>';
+  chart.appendChild(p);
+  p.addEventListener('pointerdown', e=>{
+    startDrag(({v})=>{ S.price = clamp(Math.round(v*2)/2, 3, 97); markCustom(); render(); });
+    e.preventDefault();
+  });
+}
+let customTimer = null;
+function markCustom(){
+  clearTimeout(customTimer);
+  customTimer = setTimeout(()=>{ document.getElementById('scenname').textContent = 'Your layout'; }, 60);
+}
+
+/* ---------- render ---------- */
+const WIGGLE = [0,-4,3,-7,2,-3,6,-2,5,-6,3,-1,4,0];
+function render(){
+  TFS.forEach(t=>{
+    const st = S.l[t.id];
+    const g = plot.querySelector('g[data-tf="'+t.id+'"]');
+    g.classList.toggle('off', !st.on);
+    const y1 = 100 - leftVal(t.id), y2 = 100 - st.level;
+    ['bar','hit'].forEach(r=>{
+      const e = g.querySelector('[data-role="'+r+'"]');
+      e.setAttribute('x1', X0); e.setAttribute('y1', y1);
+      e.setAttribute('x2', X1); e.setAttribute('y2', y2);
+    });
+    const tag = ov.querySelector('.tag[data-tf="'+t.id+'"]');
+    tag.style.top = (100 - st.level) + '%';
+    tag.classList.toggle('off', !st.on);
+    ov.querySelectorAll('.endh[data-tf="'+t.id+'"]').forEach(h=>{
+      h.style.top = (100 - (h.dataset.side === 'left' ? st.left : st.level)) + '%';
+      h.classList.toggle('off', !st.on);
+    });
+  });
+
+  const pts = WIGGLE.map((w,i)=>{
+    const x = X0 + (SPAN * i / (WIGGLE.length-1));
+    return x + ',' + clamp(100 - (S.price + w), 1, 99);
+  }).join(' ');
+  plot.querySelector('#ppath').setAttribute('points', pts);
+  document.getElementById('pline').style.top = (100 - S.price) + '%';
+
+  document.getElementById('ctrls').innerHTML = TFS.map(t=>{
+    const st = S.l[t.id];
+    return '<div class="tfctrl"><span class="name" style="background:'+t.color+';color:'+t.on+'">'+t.id+'</span>'+
+      '<div class="row">'+
+      '<button class="mini '+(st.bias==='bull'?'on-bull':'')+'" data-a="bias" data-tf="'+t.id+'" data-v="bull">&uarr;</button>'+
+      '<button class="mini '+(st.bias==='bear'?'on-bear':'')+'" data-a="bias" data-tf="'+t.id+'" data-v="bear">&darr;</button>'+
+      '<button class="mini '+(st.bias==='none'?'on-none':'')+'" data-a="bias" data-tf="'+t.id+'" data-v="none">&mdash;</button>'+
+      '<button class="mini '+(st.on?'on-line':'')+'" data-a="line" data-tf="'+t.id+'" title="line drawn / no line yet">line</button>'+
+      '</div></div>';
+  }).join('');
+
+  const order = stackOrder();
+  const bgFor = b => b==='bull' ? 'bg-bull' : b==='bear' ? 'bg-bear' : 'bg-none';
+  document.getElementById('dashbody').innerHTML = TFS.map((t,i)=>{
+    const st = S.l[t.id], ps = priceState(t.id);
+    const sl = slopeOf(t.id);
+    const tilt = !st.on ? '' : '<span class="sl" title="line slope">'+(sl > 3 ? '↗' : sl < -3 ? '↘' : '→')+'</span>';
+    const o = order[i];
+    const oCell = o ? '<td class="'+bgFor(S.l[o].bias)+'" style="color:'+TF[o].dim+'">'+o+'</td>'
+                    : '<td style="color:#6A6A6A">&mdash;</td>';
+    return '<tr><td style="color:'+t.dim+'">'+t.id+tilt+'</td>'+
+           '<td class="px '+bgFor(st.bias)+'"><span class="ar">'+arrows[ps]+'</span>'+ps+'</td>'+oCell+'</tr>';
+  }).join('');
+
+  const rows = [], chop = chopCity(), ps = perfectStack();
+  if(chop.length) rows.push('<div class="msg" style="color:#FFD400" title="'+chop.join(' · ')+'">Chop City<small>'+chop[0]+(chop.length>1?' (+'+(chop.length-1)+' more)':'')+'</small></div>');
+  if(ps==='bull') rows.push('<div class="msg" style="color:#2ECC71">Perfect Bullish Stack</div>');
+  if(ps==='bear') rows.push('<div class="msg" style="color:#FF5B5B">Perfect Bearish Stack</div>');
+  PAIRS.forEach(([hi,lo])=>{
+    const r = pairPhrase(hi,lo);
+    rows.push(r ? '<div class="msg" style="color:'+(r.color==='bull'?'#2ECC71':'#FF5B5B')+'"><b>'+hi+'&rarr;'+lo+'</b>'+r.text+'</div>'
+               : '<div class="dashrow"><b>'+hi+'&rarr;'+lo+'</b>&mdash;</div>');
+  });
+  document.getElementById('boardrows').innerHTML = rows.join('');
+
+  let verdict, vclass, note;
+  if(chop.length){
+    verdict='Tangled.'; vclass='v-chop';
+    note='A higher-timeframe line is buried inside a lower pair. Whatever the smaller timeframes are doing, they are doing it inside someone else\'s range. Respect this over every other message on the board.';
+  } else if(ps==='bull'){
+    verdict='Stacked and bullish.'; vclass='v-bull';
+    note='Every line is in order and every bias agrees. Watch for pullbacks into the lower lines, not reversals.';
+  } else if(ps==='bear'){
+    verdict='Stacked and bearish.'; vclass='v-bear';
+    note='Full alignment down. Watch for rallies into the lower lines.';
+  } else {
+    const livePhrases = PAIRS.map(p=>pairPhrase(p[0],p[1])).filter(Boolean);
+    if(!livePhrases.length){
+      verdict='Nothing to call yet.'; vclass='v-flat';
+      note='No pair is meeting a condition — either a line has not printed, a bias is still flat, or the lower line is on the wrong side of the higher one for a phrase to apply.';
+    } else {
+      const g = livePhrases.filter(p=>p.color==='bull').length, r = livePhrases.length - g;
+      verdict = g>r ? 'Working with the higher timeframe.' : r>g ? 'Working against the higher timeframe.' : 'Split read.';
+      vclass  = g>r ? 'v-bull' : r>g ? 'v-bear' : 'v-flat';
+      note = livePhrases.length + ' of 3 pairs are live. ' + (g>r
+        ? 'Green means price is holding on the side the higher timeframe wants.'
+        : r>g ? 'Red means price is on the wrong side of the lower line for the higher timeframe\'s direction.'
+        : 'One pair with it, one against it — let the next line resolve before sizing in.');
+    }
+  }
+  const waits = TFS.filter(t=>!live(t.id)).map(t=>t.id);
+  const against = TFS.filter(t=>live(t.id) && S.l[t.id].bias!=='none' &&
+    ((S.l[t.id].bias==='bull' && slopeOf(t.id) < -3) || (S.l[t.id].bias==='bear' && slopeOf(t.id) > 3))).map(t=>t.id);
+  document.getElementById('readout').innerHTML =
+    '<span class="verdict '+vclass+'">'+verdict+'</span>'+note +
+    (waits.length ? '<br><b>Waiting on:</b> '+waits.join(', ')+' — no line drawn yet.' : '') +
+    (against.length ? '<br><b>Tilting against its own bias:</b> '+against.join(', ')+'.' : '');
+}
+
+/* ---------- wiring ---------- */
+document.getElementById('ctrls').addEventListener('click', e=>{
+  const b = e.target.closest('button'); if(!b) return;
+  const tf = b.dataset.tf;
+  if(b.dataset.a === 'bias'){
+    const st = S.l[tf], v = b.dataset.v;
+    st.bias = v;
+    if(v !== 'none'){
+      const want = (v === 'bull' ? 1 : -1) * Math.max(Math.abs(slopeOf(tf)), DEFAULT_TILT);
+      // only reshape when the line isn't already tilting with its new bias
+      if(Math.sign(slopeOf(tf)) !== Math.sign(want) || Math.abs(slopeOf(tf)) < 4){
+        st.left = clamp(st.level - want, 2, 98);
+        if(Math.abs(st.level - st.left) < 6){          // ran out of room — move the anchor instead
+          st.level = clamp(st.left + want, 2, 98);
+          st.left  = clamp(st.level - want, 2, 98);
+        }
+      }
+    }
+  }
+  if(b.dataset.a === 'line') S.l[tf].on = !S.l[tf].on;
+  document.getElementById('scenname').textContent = 'Your layout';
+  render();
+});
+document.getElementById('prev').onclick = ()=>loadScenario(scenIdx-1);
+document.getElementById('next').onclick = ()=>loadScenario(scenIdx+1);
+document.getElementById('shuffle').onclick = randomLayout;
+
+const board = document.getElementById('board'), quizBtn = document.getElementById('quiz');
+let quiz = false;
+function setQuiz(v){
+  quiz = v;
+  board.classList.toggle('hidden', quiz);
+  quizBtn.textContent = quiz ? 'Show the answers' : 'Hide the answers';
+}
+quizBtn.onclick = ()=>setQuiz(!quiz);
+document.getElementById('cover').onclick = ()=>setQuiz(false);
+
+buildChart();
+loadScenario(0);
+</script>
+</body>
+</html>
